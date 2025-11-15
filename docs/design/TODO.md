@@ -1,6 +1,6 @@
 # Doctor A (doctora) - Project TODO
 
-**Last Updated**: 2024-11-14
+**Last Updated**: 2025-11-14
 **Project**: Doctor A - AsciiDoc Parser and Processor
 **Language**: Rust
 
@@ -10,10 +10,10 @@
 
 - **Total Milestones**: 3
 - **Completed Milestones**: 0
-- **Total Features**: 5
-- **Completed Features**: 0 (0%)
-- **Total Tasks**: 0 (will grow as features are designed)
-- **Completed Tasks**: 0 (0%)
+- **Total Features**: 6
+- **Completed Features**: 1 (17%)
+- **Total Tasks**: 79 (Milestone 1 tasks counted)
+- **Completed Tasks**: 6/79 (8%)
 
 ---
 
@@ -48,22 +48,24 @@
 ## Milestone 1: Core Parser (v0.1.0 - MVP)
 
 **Target**: TBD
-**Status**: 📋 Not Started
+**Status**: 🔄 In Progress (1/5 features completed, 6/79 tasks)
 **Goal**: Parse basic AsciiDoc and validate structure
 
-### Feature: Parsing Library Selection
-**Status**: 📋 Not Started
+### Feature: Parsing Library Selection ✅
+**Status**: ✅ Completed (2025-11-14)
 **Priority**: Critical
 **Effort**: Medium
+**Spec**: `docs/design/features/core-parser.md`
 
-*Note: Tasks will be added when feature specification is created*
+- [x] Research parsing libraries (pest, nom, chumsky, winnow, hand-written) ✅
+- [x] Research existing Rust AsciiDoc implementations (asciidoc-parser, asciidocr, asciidork) ✅
+- [x] Evaluate error recovery capabilities ✅
+- [x] Benchmark performance (JSON parsing comparisons) ✅
+- [x] Document decision (ADR-004: Logos + Chumsky) ✅
+- [x] Create feature specification (core-parser.md) ✅
+- [ ] Create proof-of-concept (Logos + Chumsky vs Logos + Winnow)
 
-- [ ] Research parsing libraries (pest, nom, chumsky, hand-written)
-- [ ] Create prototype with top candidates
-- [ ] Evaluate error messages
-- [ ] Benchmark performance
-- [ ] Document decision (ADR-004)
-- [ ] Create feature specification
+**Decision**: Use **Logos (lexer) + Chumsky (parser)** for best error recovery and excellent performance.
 
 ### Feature: Core AST Design
 **Status**: 📋 Not Started
@@ -78,20 +80,100 @@
 - [ ] Design metadata handling
 - [ ] Create feature specification
 
-### Feature: Basic Parser Implementation
-**Status**: 📋 Not Started
+### Feature: Core Parser Implementation
+**Status**: 🔄 In Progress (0/67 tasks completed)
 **Priority**: Critical
 **Effort**: X-Large
-**Dependencies**: Parsing Library Selection, Core AST Design
+**Dependencies**: Parsing Library Selection ✅, Core AST Design
+**Spec**: `docs/design/features/core-parser.md`
 
-*Note: Requires feature specification*
+#### Phase 1: Proof of Concept (1 week)
+- [ ] Set up Rust project with logos and chumsky dependencies
+- [ ] Define minimal Token enum (headings, paragraphs, bold, italic)
+- [ ] Implement basic Logos lexer for minimal tokens
+- [ ] Create simple Chumsky parser for subset (document → sections → paragraphs)
+- [ ] Parse example AsciiDoc files, validate approach
+- [ ] Benchmark POC: compare Logos+Chumsky vs Logos+Winnow
+- [ ] Decision point: confirm Chumsky or switch to Winnow
 
-- [ ] Implement lexer/tokenizer
-- [ ] Implement basic parser
-- [ ] Implement AST builder
-- [ ] Implement basic validator
-- [ ] Add error handling
-- [ ] Create feature specification
+#### Phase 2: Lexer Implementation (1 week)
+- [ ] Define complete Token enum for all AsciiDoc syntax
+- [ ] Implement Logos patterns for all tokens
+- [ ] Add span tracking to lexer output
+- [ ] Write lexer unit tests (>95% coverage)
+- [ ] Benchmark lexer performance (target: 500+ MB/s)
+- [ ] Add error token handling
+
+#### Phase 3: Core AST Types (3 days)
+- [ ] Define Document, Header, Block, InlineNode types
+- [ ] Add Span to all AST nodes
+- [ ] Implement Default, Debug, Clone for AST types
+- [ ] Add serde Serialize/Deserialize for AST
+- [ ] Write AST construction tests
+
+#### Phase 4: Block Parser (2 weeks)
+- [ ] Document parser (header + body)
+- [ ] Section parser (with nesting)
+- [ ] Paragraph parser
+- [ ] Delimited block parser (all types)
+- [ ] List parser (unordered, ordered, description)
+- [ ] Table parser (basic tables)
+- [ ] Table parser (nested tables, cell styles)
+- [ ] Block macro parser
+- [ ] Block parser integration tests
+
+#### Phase 5: Inline Parser (1 week)
+- [ ] Text and whitespace handling
+- [ ] Bold, italic, monospace formatting
+- [ ] Links (inline and macro)
+- [ ] Inline macros (image, etc.)
+- [ ] Attribute references
+- [ ] Subscript, superscript, mark
+- [ ] Inline parser tests
+
+#### Phase 6: Context-Sensitive Features (1 week)
+- [ ] Attribute definition and substitution
+- [ ] Conditional directives (ifdef/ifndef/ifeval)
+- [ ] Include directive processing
+- [ ] Parser state management
+- [ ] Context-sensitive tests
+
+#### Phase 7: Error Recovery (1 week)
+- [ ] Define ParseError types with miette integration
+- [ ] Implement synchronization strategy
+- [ ] Add error recovery to block parser
+- [ ] Add error recovery to inline parser
+- [ ] Multiple error collection
+- [ ] Error message quality tests
+
+#### Phase 8: Validation (3 days)
+- [ ] Implement post-parse validator
+- [ ] Validate attribute references
+- [ ] Validate section nesting
+- [ ] Validate include paths
+- [ ] Validator tests
+
+#### Phase 9: Public API (2 days)
+- [ ] Design Parser public API
+- [ ] Implement ParserConfig
+- [ ] Implement ParseResult
+- [ ] Add convenience methods (parse_file, etc.)
+- [ ] API documentation with examples
+
+#### Phase 10: Performance Optimization (1 week)
+- [ ] Benchmark full parser on real AsciiDoc documents
+- [ ] Profile hot paths, optimize allocations
+- [ ] Add zero-copy optimizations where possible
+- [ ] Streaming parser (if needed)
+- [ ] Final performance tests (must meet requirements)
+
+#### Phase 11: Testing & Quality (1 week)
+- [ ] Achieve >95% test coverage
+- [ ] Add property-based tests (proptest)
+- [ ] Set up fuzzing with cargo-fuzz
+- [ ] Compatibility tests against asciidoctor
+- [ ] Edge case tests from research
+- [ ] Documentation with rustdoc
 
 ### Feature: CLI Interface
 **Status**: 📋 Not Started
@@ -252,7 +334,14 @@ Features not yet assigned to a milestone.
 
 ## Completed Features ✅
 
-*No features completed yet*
+### Parsing Library Selection (2025-11-14)
+**Milestone**: 1 - Core Parser
+**Outcome**: Selected **Logos + Chumsky** approach
+- Researched 5 parsing libraries and 4 existing Rust AsciiDoc implementations
+- Documented comprehensive ADR-004 in architecture.md
+- Created detailed feature specification (core-parser.md)
+- Decision: Logos for lexing (1,200+ MB/s), Chumsky for parsing (533 MB/s) with error recovery
+- Next: Proof-of-concept implementation
 
 ---
 
@@ -266,9 +355,9 @@ Features not yet assigned to a milestone.
 
 Features that need specifications before implementation:
 
-1. ⚠️ **Parsing Library Selection** - Research and prototyping needed
-2. ⚠️ **Core AST Design** - Detailed design needed
-3. ⚠️ **Basic Parser Implementation** - Architecture design needed
+1. ✅ ~~**Parsing Library Selection**~~ - Complete (see core-parser.md)
+2. ⚠️ **Core AST Design** - Detailed in core-parser.md, ready for implementation
+3. 🔄 **Core Parser Implementation** - Specification complete (core-parser.md), implementation in progress
 4. ⚠️ **CLI Interface** - API design needed
 5. ⚠️ **HTML Processor** - Architecture design needed
 
@@ -290,12 +379,17 @@ Features that need specifications before implementation:
 5. Build basic CLI
 
 ### Open Questions
-- Which parsing library to use? (pest vs nom vs chumsky vs hand-written)
-- What subset of AsciiDoc to support in v0.1.0?
-- Should we follow asciidoctor behavior exactly or innovate?
-- How to handle backwards compatibility in future versions?
+- ~~Which parsing library to use?~~ **RESOLVED**: Logos + Chumsky (see ADR-004)
+- What subset of AsciiDoc to support in v0.1.0? → See core-parser.md Phase 1-5
+- Should Chumsky alpha status concern us? → Mitigated by pinning version, can swap to Winnow
+- Should we follow asciidoctor behavior exactly or innovate? → Aim for compatibility, document differences
+- How to handle backwards compatibility in future versions? → TBD after v0.1.0
 
 ### Recent Changes
+- 2025-11-14: **Parsing Library Selection** completed - Decision: Logos + Chumsky
+- 2025-11-14: Created comprehensive feature spec (core-parser.md) with 67 implementation tasks
+- 2025-11-14: Updated ADR-004 with detailed research findings and benchmarks
+- 2025-11-14: Added 11-phase implementation plan to TODO.md
 - 2024-11-14: Initial TODO list created
 - 2024-11-14: Project foundation completed
 - 2024-11-14: Milestones 1-3 outlined
@@ -304,8 +398,10 @@ Features that need specifications before implementation:
 
 ## Next Actions
 
-1. **Immediate**: Create feature specification for "Parsing Library Selection"
-2. **Immediate**: Research parsing libraries (pest, nom, chumsky)
-3. **Short-term**: Design core AST structure
-4. **Short-term**: Create detailed specifications for Milestone 1 features
-5. **Medium-term**: Begin implementation of basic parser
+1. **Immediate**: Set up Rust project (cargo init, add logos/chumsky dependencies)
+2. **Immediate**: Create proof-of-concept parser (Phase 1 tasks)
+3. **Immediate**: Benchmark Logos+Chumsky vs Logos+Winnow
+4. **Short-term**: Implement complete Logos lexer (Phase 2 tasks)
+5. **Short-term**: Define all AST types (Phase 3 tasks)
+6. **Medium-term**: Build block parser (Phase 4 tasks)
+7. **Medium-term**: Create feature specifications for CLI and HTML Processor

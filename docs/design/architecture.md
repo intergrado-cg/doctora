@@ -99,13 +99,14 @@ The processor system uses a plugin architecture:
 - **Purpose**: Break input text into tokens
 - **Input**: Raw AsciiDoc text
 - **Output**: Stream of tokens
-- **Technology**: TBD (pest PEG grammar, nom combinators, or hand-written)
+- **Technology**: **Logos** (compile-time lexer generator, see ADR-004)
 
 #### Parser
 - **Purpose**: Build AST from token stream
-- **Input**: Token stream
+- **Input**: Token stream from Logos
 - **Output**: Raw AST
-- **Approach**: TBD (recursive descent, parser combinators)
+- **Technology**: **Chumsky** (parser combinator with error recovery, see ADR-004)
+- **Approach**: Parser combinators with context-sensitive state management
 
 #### AST Builder
 - **Purpose**: Construct typed AST nodes
@@ -327,16 +328,22 @@ Processors can accept configuration:
 - **Edition**: 2021
 - **Minimum Version**: TBD (likely 1.70+)
 
-### Parsing Libraries (To Be Decided)
-Options under consideration:
-- **pest**: PEG parser generator, declarative grammar
-- **nom**: Parser combinator library, flexible
-- **chumsky**: Error-recovery parser combinators
-- **lalrpop**: LR parser generator
-- **Hand-written**: Recursive descent parser
+### Parsing Libraries
+**Chosen Approach**: Logos + Chumsky (see ADR-004)
+
+**Primary Libraries**:
+- **logos** (v0.15+): Compile-time lexer generator for fast tokenization (1,200+ MB/s)
+- **chumsky** (v1.0.0-alpha.8+): Parser combinator with error recovery (533 MB/s parsing)
+
+**Rationale**:
+- Best error recovery for document authoring (reports multiple errors)
+- Excellent performance (within 20% of hand-written parsers)
+- Handles AsciiDoc's context-sensitive parsing requirements
+- Migration path to winnow or hand-written parser if needed
 
 ### Other Dependencies
 - **Error Handling**: `thiserror`, `anyhow`
+- **Diagnostics**: `miette` (for beautiful error reporting with code context)
 - **CLI**: `clap` (for command-line interface)
 - **Serialization**: `serde` (for config, intermediate formats)
 - **Testing**: Built-in Rust testing, `proptest` for property testing
@@ -463,25 +470,117 @@ Options under consideration:
 
 ---
 
-### ADR-004: Parsing Library (TBD)
-**Status**: Under Consideration
+### ADR-004: Parsing Library - Logos + Chumsky
+**Status**: Accepted
 **Date**: 2024-11-14
+**Updated**: 2025-11-14
 
-**Context**: Need to choose parsing approach.
+**Context**:
+AsciiDoc is a context-sensitive markup language with complex parsing requirements:
+- Multi-stage attribute substitution with dependency chains
+- Conditional directives evaluated during parsing (ifdef/ifndef)
+- Stateful delimited block nesting with dynamic delimiters
+- Complex table parsing with nested structures
+- Include directives requiring file system access during parsing
 
-**Options**:
-1. **pest**: PEG grammar, declarative, good errors
-2. **nom**: Combinators, flexible, steep learning curve
-3. **chumsky**: Error recovery, good for interactive use
-4. **Hand-written**: Full control, more work
+Need to choose parsing approach that can handle these requirements while providing excellent error messages and performance.
 
-**Decision**: TBD - requires research and prototyping.
+**Research Conducted**:
+Analyzed existing Rust AsciiDoc implementations:
+- **asciidoc-parser**: Hand-written recursive descent, 99% test coverage
+- **asciidocr**: Regex-based with custom AST
+- **asciidork**: Hand-written custom parser
+- **Finding**: ALL existing implementations use hand-written parsers, none use parser combinators or PEG generators
 
-**Next Steps**:
-- Prototype simple AsciiDoc grammar with each option
-- Evaluate error messages
-- Assess performance
-- Consider maintainability
+Evaluated parsing libraries with benchmarks (JSON parsing, AMD Ryzen 7 3700x):
+- **Chumsky**: 210 µs (533 MB/s) - Best error recovery
+- **Winnow**: 179 µs (627 MB/s) - Best performance
+- **Nom**: 527 µs (213 MB/s) - Mature ecosystem
+- **Pest**: 1,971 µs (57 MB/s) - 14x slower, PEG limitations
+- **Logos** (lexer): 1,200+ MB/s - Fastest tokenization
+
+**Decision**: Use **Logos (lexer) + Chumsky (parser)**.
+
+**Rationale**:
+1. **Performance**: Logos provides fastest lexing (1,200+ MB/s), Chumsky delivers excellent parsing (533 MB/s, within 20% of hand-written)
+2. **Error Recovery**: Chumsky offers best-in-class error recovery - can report multiple syntax errors in single pass, critical for document authoring
+3. **Context-Sensitivity**: Chumsky supports context-sensitive grammars via dedicated combinators, handles AsciiDoc's stateful parsing needs
+4. **User Experience**: Superior error messages for document authors compared to alternatives
+5. **Modern & Maintained**: Both actively developed (Logos: Aug 2025, Chumsky: Jan 2025 alpha)
+6. **Integration**: Chumsky has logos.rs example demonstrating integration pattern
+7. **Differentiation**: No existing Rust AsciiDoc project uses this combination, opportunity to demonstrate modern approach
+8. **Migration Path**: Can swap Chumsky for Winnow or hand-written parser if needed (tokens remain same)
+
+**Consequences**:
+
+*Pros*:
+- Fast lexing + competitive parsing performance
+- Multiple error reporting improves developer experience
+- Automatic span tracking for precise error locations
+- Zero-copy parsing minimizes allocations
+- no_std support for embedded use cases
+- Idiomatic Rust with strong type safety
+
+*Cons*:
+- Chumsky is alpha status (1.0.0-alpha.8), API may change before 1.0
+- Two libraries to learn instead of one
+- Smaller ecosystem than nom/winnow
+- Some allocation overhead from error recovery (acceptable trade-off)
+- Requires understanding parser combinator concepts
+
+*Mitigations*:
+- Pin to specific Chumsky version to avoid breaking changes
+- Extensive testing to validate stability
+- Tokens are library-agnostic (can migrate parser if needed)
+- Proof-of-concept phase to validate approach
+
+**Alternatives Considered**:
+
+1. **Pest** (PEG Generator)
+   - *Rejected*: 14x slower (57 MB/s vs 533 MB/s)
+   - PEG cannot handle context-sensitive parsing well
+   - No left recursion support
+   - AsciiDoc PEG experiment abandoned with 30+ unmapped features
+   - Too slow for large documents
+
+2. **Winnow** (Parser Combinator)
+   - *Alternative*: Best overall performance (627 MB/s)
+   - Considered if maximum performance > error recovery
+   - Less sophisticated error handling than Chumsky
+   - Valid alternative if benchmarks show Chumsky insufficient
+
+3. **Nom** (Parser Combinator)
+   - *Not Chosen*: Winnow is nom's successor with better errors
+   - Slower than Winnow (213 MB/s vs 627 MB/s)
+   - Larger ecosystem but older API design
+   - Use Winnow instead if choosing this approach
+
+4. **Hand-Written Parser**
+   - *Future Option*: Maximum control, proven by all existing projects
+   - More development effort and maintenance burden
+   - Can migrate to this if library approach proves insufficient
+   - Logos lexer can be retained with hand-written parser
+
+5. **Logos + Winnow**
+   - *Alternative*: If need maximum performance over error recovery
+   - 18% faster parsing (627 MB/s vs 533 MB/s)
+   - Less error recovery sophistication
+   - Valid swap if performance profiling shows bottleneck
+
+**Implementation Plan**:
+1. **Phase 1**: Proof-of-concept comparing Logos+Chumsky vs Logos+Winnow
+2. **Phase 2**: Implement Logos lexer with complete AsciiDoc token set
+3. **Phase 3**: Build Chumsky parser for core AsciiDoc features
+4. **Phase 4**: Integrate miette for diagnostic reporting
+5. **Phase 5**: Benchmark with real AsciiDoc documents, optimize or migrate if needed
+
+**Success Criteria**:
+- Parse 1MB AsciiDoc document in < 50ms (20 MB/s minimum)
+- Report all syntax errors in document (not just first error)
+- Error messages include line/column, context, and suggestions
+- Test coverage > 95% for parser core
+
+**Review Date**: After proof-of-concept completion (before v0.1.0)
 
 ---
 

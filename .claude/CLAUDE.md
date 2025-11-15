@@ -78,6 +78,28 @@ This project uses specialized Claude Code agents:
 - "Update the TODO to mark completed tasks"
 - "What's the current architecture?"
 
+### rust-implementation Agent
+
+**When to invoke**: Implementing features in Rust, debugging errors, code review
+
+**Capabilities**:
+- Write production-quality, idiomatic Rust code from specifications
+- Debug compiler errors, borrow checker issues, and runtime problems
+- Research solutions online (Rust docs, Stack Overflow, r/rust)
+- Review code quality and suggest improvements
+- Self-learning: Accumulates error solutions, patterns, and crate knowledge
+
+**Skills**:
+- `rust-coding`: Implement features following Rust API guidelines and best practices
+- `debugging`: Resolve compiler/runtime errors, research solutions online
+- `code-review`: Review code quality, idiomacy, safety, and performance
+
+**Usage examples**:
+- "Implement the lexer module from the core-parser spec"
+- "Fix the borrow checker error in parser.rs:45"
+- "Review the AST implementation for code quality"
+- "Debug this lifetime error I'm getting"
+
 ## Workflows
 
 ### Adding a New Feature
@@ -93,8 +115,11 @@ This project uses specialized Claude Code agents:
    - Add feature and tasks to `docs/design/TODO.md`
    - Set priority and effort estimates
 
-3. **Implementation Phase** (future - when Rust code exists):
-   - Implement according to feature spec
+3. **Implementation Phase** (use rust-implementation agent):
+   - Implement features according to specifications
+   - Write idiomatic, tested Rust code
+   - Debug and fix errors as they arise
+   - Review code quality before completion
    - Mark tasks complete in TODO.md as you finish them
    - Update feature spec status as work progresses
 
@@ -151,17 +176,23 @@ Decision pending research and prototyping.
 
 ## Self-Learning System
 
-The doctora-architect agent learns from experience:
+Both agents learn from experience:
 
-**Experience Logs**:
-- `.claude/agents/doctora-architect-experience.md`: Chronological log of design decisions and research findings
+**doctora-architect Experience Logs**:
+- `.claude/agents/doctora-architect-experience.md`: Design decisions and research findings
 - `.claude/skills/feature-design/SKILL.md`: Lessons Learned section
 - `.claude/skills/project-management/SKILL.md`: Lessons Learned section
+
+**rust-implementation Experience Logs**:
+- `.claude/agents/rust-implementation-experience.md`: Implementation work, error solutions, patterns
+- `.claude/skills/rust-coding/SKILL.md`: Lessons Learned section
+- `.claude/skills/debugging/SKILL.md`: Lessons Learned section
+- `.claude/skills/code-review/SKILL.md`: Lessons Learned section
 
 **When valuable insights are discovered:**
 1. Always add to experience log first
 2. Selectively promote to skill files if broadly applicable
-3. Update with: research findings, design decisions, useful resources, lessons from completed work
+3. Update with: research findings, design decisions, error solutions, useful resources, lessons from completed work
 
 ## Key Resources
 
