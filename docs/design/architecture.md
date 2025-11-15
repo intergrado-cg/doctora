@@ -105,7 +105,7 @@ The processor system uses a plugin architecture:
 - **Purpose**: Build AST from token stream
 - **Input**: Token stream from Logos
 - **Output**: Raw AST
-- **Technology**: **Chumsky** (parser combinator with error recovery, see ADR-004)
+- **Technology**: **Winnow** (parser combinator with zero-copy design, see ADR-004)
 - **Approach**: Parser combinators with context-sensitive state management
 
 #### AST Builder
@@ -329,15 +329,15 @@ Processors can accept configuration:
 - **Minimum Version**: TBD (likely 1.70+)
 
 ### Parsing Libraries
-**Chosen Approach**: Logos + Chumsky (see ADR-004)
+**Chosen Approach**: Logos + Winnow (see ADR-004)
 
 **Primary Libraries**:
-- **logos** (v0.15+): Compile-time lexer generator for fast tokenization (1,200+ MB/s)
-- **chumsky** (v1.0.0-alpha.8+): Parser combinator with error recovery (533 MB/s parsing)
+- **logos** (v0.15): Compile-time lexer generator for fast tokenization (1,200+ MB/s)
+- **winnow** (v0.7): Parser combinator with zero-copy design (112 MiB/s on typical documents)
 
 **Rationale**:
-- Best error recovery for document authoring (reports multiple errors)
-- Excellent performance (within 20% of hand-written parsers)
+- Best performance validated by POC benchmarks (16-45% faster than alternatives)
+- Zero-copy design for scalability with large documents
 - Handles AsciiDoc's context-sensitive parsing requirements
 - Migration path to winnow or hand-written parser if needed
 
@@ -470,10 +470,10 @@ Processors can accept configuration:
 
 ---
 
-### ADR-004: Parsing Library - Logos + Chumsky
+### ADR-004: Parsing Library - Logos + Winnow
 **Status**: Accepted
 **Date**: 2024-11-14
-**Updated**: 2025-11-14
+**Updated**: 2025-11-15 (Revised after POC benchmarks)
 
 **Context**:
 AsciiDoc is a context-sensitive markup language with complex parsing requirements:
@@ -499,40 +499,50 @@ Evaluated parsing libraries with benchmarks (JSON parsing, AMD Ryzen 7 3700x):
 - **Pest**: 1,971 µs (57 MB/s) - 14x slower, PEG limitations
 - **Logos** (lexer): 1,200+ MB/s - Fastest tokenization
 
-**Decision**: Use **Logos (lexer) + Chumsky (parser)**.
+**Decision**: Use **Logos (lexer) + Winnow (parser)**.
+
+**POC Results** (2025-11-15): Phase 1 proof-of-concept implemented both Logos+Chumsky and Logos+Winnow parsers with identical functionality. Comprehensive benchmarks showed Winnow's clear performance advantage:
+- Small documents (100B): Winnow 33% faster (87.86 MiB/s vs 65.99 MiB/s)
+- Medium documents (1KB): Winnow 45% faster (112.44 MiB/s vs 77.56 MiB/s)
+- Large documents (10KB): Winnow 16% faster (97.55 MiB/s vs 84.39 MiB/s)
+
+See `docs/BENCHMARK_RESULTS.md` for detailed analysis.
 
 **Rationale**:
-1. **Performance**: Logos provides fastest lexing (1,200+ MB/s), Chumsky delivers excellent parsing (533 MB/s, within 20% of hand-written)
-2. **Error Recovery**: Chumsky offers best-in-class error recovery - can report multiple syntax errors in single pass, critical for document authoring
-3. **Context-Sensitivity**: Chumsky supports context-sensitive grammars via dedicated combinators, handles AsciiDoc's stateful parsing needs
-4. **User Experience**: Superior error messages for document authors compared to alternatives
-5. **Modern & Maintained**: Both actively developed (Logos: Aug 2025, Chumsky: Jan 2025 alpha)
-6. **Integration**: Chumsky has logos.rs example demonstrating integration pattern
-7. **Differentiation**: No existing Rust AsciiDoc project uses this combination, opportunity to demonstrate modern approach
-8. **Migration Path**: Can swap Chumsky for Winnow or hand-written parser if needed (tokens remain same)
+1. **Performance**: Winnow demonstrated 16-45% faster parsing than Chumsky in real-world benchmarks, with best gains on typical document sizes (1KB: 112.44 MiB/s)
+2. **Consistency**: Winnow maintains performance advantage across all input sizes tested (small, medium, large documents)
+3. **Zero-Copy Design**: Winnow's architecture minimizes allocations and memory overhead, scales better for large documents
+4. **Production Ready**: Winnow 0.7 is stable release (vs Chumsky 1.0 alpha), actively maintained as modern fork of nom
+5. **Ecosystem**: Larger community, more examples, proven in production Rust projects
+6. **Context-Sensitivity**: Parser combinators support AsciiDoc's stateful parsing requirements (attributes, conditionals, includes)
+7. **Error Handling**: Flexible error recovery can be implemented on top of Winnow's `ErrMode` system
+8. **Future-Proof**: Performance headroom allows for additional features without bottleneck concerns
+9. **Migration Path**: Logos lexer remains unchanged; only parser layer uses Winnow
 
 **Consequences**:
 
 *Pros*:
-- Fast lexing + competitive parsing performance
-- Multiple error reporting improves developer experience
+- Fastest overall parsing performance (16-45% faster than Chumsky)
+- Stable release (Winnow 0.7) with predictable API
+- Zero-copy design minimizes allocations and memory overhead
+- Proven in production - larger ecosystem than Chumsky
 - Automatic span tracking for precise error locations
-- Zero-copy parsing minimizes allocations
-- no_std support for embedded use cases
+- Modern fork of nom with improved ergonomics
 - Idiomatic Rust with strong type safety
+- no_std support for embedded use cases
 
 *Cons*:
-- Chumsky is alpha status (1.0.0-alpha.8), API may change before 1.0
-- Two libraries to learn instead of one
-- Smaller ecosystem than nom/winnow
-- Some allocation overhead from error recovery (acceptable trade-off)
+- More verbose syntax (explicit type annotations required)
+- Manual error recovery implementation (vs Chumsky's built-in)
 - Requires understanding parser combinator concepts
+- Learning curve for contributors unfamiliar with Winnow
 
 *Mitigations*:
-- Pin to specific Chumsky version to avoid breaking changes
-- Extensive testing to validate stability
+- Document Winnow patterns and provide examples for contributors
+- Implement custom error recovery layer on top of Winnow
+- Extensive testing validates correctness despite manual approach
+- POC demonstrated comparable implementation effort to Chumsky
 - Tokens are library-agnostic (can migrate parser if needed)
-- Proof-of-concept phase to validate approach
 
 **Alternatives Considered**:
 
@@ -543,11 +553,12 @@ Evaluated parsing libraries with benchmarks (JSON parsing, AMD Ryzen 7 3700x):
    - AsciiDoc PEG experiment abandoned with 30+ unmapped features
    - Too slow for large documents
 
-2. **Winnow** (Parser Combinator)
-   - *Alternative*: Best overall performance (627 MB/s)
-   - Considered if maximum performance > error recovery
-   - Less sophisticated error handling than Chumsky
-   - Valid alternative if benchmarks show Chumsky insufficient
+2. **Chumsky** (Parser Combinator)
+   - *Not Chosen*: Excellent error recovery but 16-45% slower in POC benchmarks
+   - Alpha status (1.0.0-alpha.8) vs Winnow's stable release
+   - More compact syntax and better type inference
+   - Built-in error recovery is sophisticated but comes with performance cost
+   - Valid alternative if error recovery > performance in future versions
 
 3. **Nom** (Parser Combinator)
    - *Not Chosen*: Winnow is nom's successor with better errors
@@ -561,18 +572,23 @@ Evaluated parsing libraries with benchmarks (JSON parsing, AMD Ryzen 7 3700x):
    - Can migrate to this if library approach proves insufficient
    - Logos lexer can be retained with hand-written parser
 
-5. **Logos + Winnow**
-   - *Alternative*: If need maximum performance over error recovery
-   - 18% faster parsing (627 MB/s vs 533 MB/s)
-   - Less error recovery sophistication
-   - Valid swap if performance profiling shows bottleneck
+5. **Logos + Chumsky**
+   - *Previously Considered*: Initial choice before POC benchmarks
+   - Better built-in error recovery than Winnow
+   - More elegant API with better type inference
+   - POC showed 16-45% slower performance than Winnow
+   - Performance trade-off not justified for error recovery benefits
 
 **Implementation Plan**:
-1. **Phase 1**: Proof-of-concept comparing Logos+Chumsky vs Logos+Winnow
+1. **Phase 1**: Proof-of-concept comparing Logos+Chumsky vs Logos+Winnow ✅ **COMPLETE** (2025-11-15)
+   - Result: Winnow selected based on 16-45% performance advantage
+   - 52 tests passing, working end-to-end pipeline
+   - Benchmarks documented in docs/BENCHMARK_RESULTS.md
 2. **Phase 2**: Implement Logos lexer with complete AsciiDoc token set
-3. **Phase 3**: Build Chumsky parser for core AsciiDoc features
+3. **Phase 3**: Build Winnow parser for core AsciiDoc features
 4. **Phase 4**: Integrate miette for diagnostic reporting
-5. **Phase 5**: Benchmark with real AsciiDoc documents, optimize or migrate if needed
+5. **Phase 5**: Implement custom error recovery layer on top of Winnow
+6. **Phase 6**: Benchmark with real AsciiDoc documents, optimize if needed
 
 **Success Criteria**:
 - Parse 1MB AsciiDoc document in < 50ms (20 MB/s minimum)
@@ -580,7 +596,7 @@ Evaluated parsing libraries with benchmarks (JSON parsing, AMD Ryzen 7 3700x):
 - Error messages include line/column, context, and suggestions
 - Test coverage > 95% for parser core
 
-**Review Date**: After proof-of-concept completion (before v0.1.0)
+**Review Date**: ✅ Completed 2025-11-15 (POC benchmarks confirmed Winnow decision). Next review: After v0.1.0 release.
 
 ---
 
@@ -608,6 +624,14 @@ Evaluated parsing libraries with benchmarks (JSON parsing, AMD Ryzen 7 3700x):
 ---
 
 ## Document Change Log
+
+### 2025-11-15
+- **ADR-004 Updated**: Revised parsing library decision from Chumsky to Winnow
+- Phase 1 POC completed with comprehensive benchmarks
+- Winnow selected based on 16-45% performance advantage over Chumsky
+- Updated rationale, consequences, and alternatives sections
+- Added POC results and benchmark references (docs/BENCHMARK_RESULTS.md)
+- Updated Core Components section to reflect Winnow technology choice
 
 ### 2024-11-14
 - Initial architecture document created

@@ -1,6 +1,6 @@
 # Doctor A (doctora) - Project TODO
 
-**Last Updated**: 2025-11-14
+**Last Updated**: 2025-11-15
 **Project**: Doctor A - AsciiDoc Parser and Processor
 **Language**: Rust
 
@@ -11,9 +11,9 @@
 - **Total Milestones**: 3
 - **Completed Milestones**: 0
 - **Total Features**: 6
-- **Completed Features**: 1 (17%)
+- **Completed Features**: 2 (33%)
 - **Total Tasks**: 79 (Milestone 1 tasks counted)
-- **Completed Tasks**: 6/79 (8%)
+- **Completed Tasks**: 13/79 (16%)
 
 ---
 
@@ -48,7 +48,7 @@
 ## Milestone 1: Core Parser (v0.1.0 - MVP)
 
 **Target**: TBD
-**Status**: 🔄 In Progress (1/5 features completed, 6/79 tasks)
+**Status**: 🔄 In Progress (2/5 features completed, 13/79 tasks)
 **Goal**: Parse basic AsciiDoc and validate structure
 
 ### Feature: Parsing Library Selection ✅
@@ -63,38 +63,40 @@
 - [x] Benchmark performance (JSON parsing comparisons) ✅
 - [x] Document decision (ADR-004: Logos + Chumsky) ✅
 - [x] Create feature specification (core-parser.md) ✅
-- [ ] Create proof-of-concept (Logos + Chumsky vs Logos + Winnow)
+- [x] Create proof-of-concept (Logos + Chumsky vs Logos + Winnow) ✅
 
-**Decision**: Use **Logos (lexer) + Chumsky (parser)** for best error recovery and excellent performance.
+**Decision**: Use **Logos (lexer) + Winnow (parser)** - Benchmarks showed Winnow is 16-45% faster than Chumsky with better performance characteristics. See docs/BENCHMARK_RESULTS.md for details.
 
 ### Feature: Core AST Design
-**Status**: 📋 Not Started
+**Status**: ✅ Completed (2025-11-15)
 **Priority**: Critical
 **Effort**: Large
 
-*Note: Requires feature specification*
+*Note: Minimal AST implemented for POC - detailed in core-parser.md*
 
-- [ ] Design Document structure
-- [ ] Design Block nodes (section, paragraph, list, code block)
-- [ ] Design Inline nodes (text, emphasis, link, image)
-- [ ] Design metadata handling
-- [ ] Create feature specification
+- [x] Design Document structure ✅
+- [x] Design Block nodes (section, paragraph, list, code block) ✅
+- [x] Design Inline nodes (text, emphasis, link, image) ✅
+- [ ] Design metadata handling (deferred to Phase 2)
+- [x] Create feature specification ✅
 
 ### Feature: Core Parser Implementation
-**Status**: 🔄 In Progress (0/67 tasks completed)
+**Status**: 🔄 In Progress (7/67 tasks completed)
 **Priority**: Critical
 **Effort**: X-Large
-**Dependencies**: Parsing Library Selection ✅, Core AST Design
+**Dependencies**: Parsing Library Selection ✅, Core AST Design ✅
 **Spec**: `docs/design/features/core-parser.md`
 
-#### Phase 1: Proof of Concept (1 week)
-- [ ] Set up Rust project with logos and chumsky dependencies
-- [ ] Define minimal Token enum (headings, paragraphs, bold, italic)
-- [ ] Implement basic Logos lexer for minimal tokens
-- [ ] Create simple Chumsky parser for subset (document → sections → paragraphs)
-- [ ] Parse example AsciiDoc files, validate approach
-- [ ] Benchmark POC: compare Logos+Chumsky vs Logos+Winnow
-- [ ] Decision point: confirm Chumsky or switch to Winnow
+#### Phase 1: Proof of Concept (1 week) ✅
+- [x] Set up Rust project with logos and winnow dependencies ✅
+- [x] Define minimal Token enum (headings, paragraphs, bold, italic) ✅
+- [x] Implement basic Logos lexer for minimal tokens ✅
+- [x] Create simple Chumsky parser for subset (document → sections → paragraphs) ✅
+- [x] Parse example AsciiDoc files, validate approach ✅
+- [x] Benchmark POC: compare Logos+Chumsky vs Logos+Winnow ✅
+- [x] Decision point: confirm Chumsky or switch to Winnow ✅
+
+**Phase 1 Complete!** Decision: Use **Winnow** (16-45% faster). Implementation: 52 tests passing, working Logos → Winnow pipeline.
 
 #### Phase 2: Lexer Implementation (1 week)
 - [ ] Define complete Token enum for all AsciiDoc syntax
@@ -379,14 +381,19 @@ Features that need specifications before implementation:
 5. Build basic CLI
 
 ### Open Questions
-- ~~Which parsing library to use?~~ **RESOLVED**: Logos + Chumsky (see ADR-004)
+- ~~Which parsing library to use?~~ **RESOLVED**: Logos + Winnow (benchmarks showed 16-45% advantage over Chumsky)
+- ~~Should Chumsky alpha status concern us?~~ **RESOLVED**: Switched to Winnow (stable, faster, zero-copy)
 - What subset of AsciiDoc to support in v0.1.0? → See core-parser.md Phase 1-5
-- Should Chumsky alpha status concern us? → Mitigated by pinning version, can swap to Winnow
 - Should we follow asciidoctor behavior exactly or innovate? → Aim for compatibility, document differences
 - How to handle backwards compatibility in future versions? → TBD after v0.1.0
 
 ### Recent Changes
-- 2025-11-14: **Parsing Library Selection** completed - Decision: Logos + Chumsky
+- 2025-11-15: **Phase 1 POC COMPLETE** - Working Logos + Winnow parser with 52 tests passing
+- 2025-11-15: **Winnow selected over Chumsky** - Benchmarks show 16-45% performance advantage
+- 2025-11-15: Core AST Design completed - Minimal AST types (Document, Block, Inline) implemented
+- 2025-11-15: Benchmark results documented in docs/BENCHMARK_RESULTS.md
+- 2025-11-15: Rust project initialized - cargo, src/, benches/ structure created
+- 2025-11-14: **Parsing Library Selection** completed - Decision: Logos + Chumsky (later revised to Winnow)
 - 2025-11-14: Created comprehensive feature spec (core-parser.md) with 67 implementation tasks
 - 2025-11-14: Updated ADR-004 with detailed research findings and benchmarks
 - 2025-11-14: Added 11-phase implementation plan to TODO.md
@@ -398,10 +405,10 @@ Features that need specifications before implementation:
 
 ## Next Actions
 
-1. **Immediate**: Set up Rust project (cargo init, add logos/chumsky dependencies)
-2. **Immediate**: Create proof-of-concept parser (Phase 1 tasks)
-3. **Immediate**: Benchmark Logos+Chumsky vs Logos+Winnow
-4. **Short-term**: Implement complete Logos lexer (Phase 2 tasks)
-5. **Short-term**: Define all AST types (Phase 3 tasks)
-6. **Medium-term**: Build block parser (Phase 4 tasks)
-7. **Medium-term**: Create feature specifications for CLI and HTML Processor
+1. **Immediate**: Update ADR-004 in architecture.md to reflect Winnow decision
+2. **Immediate**: Begin Phase 2 - Implement complete Logos lexer with all AsciiDoc tokens
+3. **Short-term**: Complete Phase 3 - Define full AST types with span tracking
+4. **Short-term**: Begin Phase 4 - Build block parser (sections, paragraphs, lists, tables)
+5. **Medium-term**: Implement Phase 5 - Inline parser (all formatting types)
+6. **Medium-term**: Add Phase 6 - Context-sensitive features (attributes, conditionals)
+7. **Long-term**: Create feature specifications for CLI and HTML Processor
