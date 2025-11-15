@@ -21,9 +21,63 @@ Processors can:
 - Incorporate outputs from child processors into their own output
 - Example: A PDF processor can invoke an image processor to handle embedded images
 
+## Usage
+
+**Note**: The project is currently in the design phase. The following shows the planned CLI interface.
+
+### Basic Parsing and Validation
+
+To parse and validate an AsciiDoc file:
+
+```bash
+# Parse and validate (checks syntax, reports errors)
+doctora input.adoc
+
+# Parse a file and output the AST for inspection
+doctora input.adoc --ast
+```
+
+### Converting to Output Formats
+
+To convert AsciiDoc to various output formats:
+
+```bash
+# Convert to HTML
+doctora input.adoc --format html -o output.html
+
+# Convert to Markdown
+doctora input.adoc --format markdown -o output.md
+
+# Convert to PDF (future)
+doctora input.adoc --format pdf -o output.pdf
+```
+
+### Options
+
+```bash
+# Show detailed error messages with context
+doctora input.adoc --verbose
+
+# Validate only (don't produce output)
+doctora input.adoc --validate
+
+# Specify output file
+doctora input.adoc --format html --output output.html
+
+# Read from stdin
+cat document.adoc | doctora --format html > output.html
+```
+
+### Exit Codes
+
+- `0`: Success - document parsed/validated successfully
+- `1`: Parse error - invalid AsciiDoc syntax
+- `2`: Processing error - error during format conversion
+- `3`: I/O error - file not found or cannot be read
+
 ## Status
 
-This project is in early development.
+This project is in early development. See `docs/design/` for current architecture and planning documentation.
 
 ## License
 

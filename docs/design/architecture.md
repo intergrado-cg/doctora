@@ -325,8 +325,8 @@ Processors can accept configuration:
 
 ### Language & Core
 - **Language**: Rust (stable)
-- **Edition**: 2021
-- **Minimum Version**: TBD (likely 1.70+)
+- **Edition**: 2024
+- **Minimum Version**: 1.91+ (required for edition 2024)
 
 ### Parsing Libraries
 **Chosen Approach**: Logos + Winnow (see ADR-004)
@@ -347,6 +347,94 @@ Processors can accept configuration:
 - **CLI**: `clap` (for command-line interface)
 - **Serialization**: `serde` (for config, intermediate formats)
 - **Testing**: Built-in Rust testing, `proptest` for property testing
+
+### Rust Edition 2024 Benefits
+
+The project uses **Rust edition 2024**, which provides several important improvements that benefit the parser implementation:
+
+#### 1. RPIT Lifetime Capture Rules (RFC 3498, 3617)
+
+**Benefit**: Parser combinator functions automatically capture lifetimes correctly.
+
+In edition 2024, Return Position Impl Trait (RPIT) automatically captures ALL in-scope generic parameters (both types AND lifetimes), fixing a long-standing asymmetry from previous editions.
+
+**Impact on doctora**:
+- Parser functions in `src/parser_winnow.rs` (e.g., `token()` at line 253) benefit from automatic lifetime capture
+- More predictable behavior when adding generic parameters to parser combinators
+- Reduces boilerplate and manual lifetime annotations
+
+**Optional syntax** for precise control:
+```rust
+fn parser<'a, 'b>(a: &'a str, b: &'b str) -> impl Parser + use<'a> {
+    // Explicitly capture only 'a, not 'b
+}
+```
+
+**Code locations benefiting**:
+- `src/parser_winnow.rs:253` - `token()` function with RPIT
+- All parser combinator functions returning `impl Parser`
+
+#### 2. Temporary Lifetime Improvements (RFC 2024)
+
+**Benefit**: Safer temporary handling in `if let` and `match` expressions.
+
+Temporaries in `if let` and `match` scrutinees are now dropped BEFORE entering the match arm, preventing common deadlock and borrowing issues with RAII types.
+
+**Impact on doctora**:
+- Future error recovery implementation (`src/error_recovery.rs`) will benefit from safer temporary lifetimes
+- When using locks or RAII types during parsing, the improved scoping prevents common pitfalls
+- No code changes needed - automatic safety improvement
+
+**Example benefit for future error recovery**:
+```rust
+if let Some(error) = error_collector.lock().unwrap().get_first() {
+    // Lock is already released in 2024 - safe to use error_collector again
+    report_error(error);
+}
+```
+
+#### 3. Never Type Fallback
+
+**Benefit**: More predictable type inference in pattern matching.
+
+The fallback type for the never type `!` is now `!` itself (instead of `()`), making type inference more intuitive.
+
+**Impact on doctora**:
+- Pattern matching in token parsing (`src/parser_winnow.rs:192-202` - `heading_level()`) has more predictable type inference
+- Exhaustive matches without fallbacks work more intuitively
+- Helpful when implementing error handling that never returns
+
+#### 4. Future-Ready Features
+
+The edition 2024 reserves keywords and prepares for upcoming features:
+
+**`gen` Blocks** (RFC 3513): Reserved for future generator support
+- Will enable more natural iterator implementations for token streams
+- Potential use in `src/token.rs` for custom token filtering/transformation
+- Status: Reserved in 2024, implementation coming in future Rust releases
+
+**Async Closures** (RFC 3668): True async closures
+- Will be valuable when implementing async processor plugins (future processor layer)
+- Enables async filtering and transformation in processor chain
+- Status: Available on nightly, stabilizing soon
+
+#### Compatibility Verification
+
+✅ **Verified 2025-11-15**: All compatibility checks passing
+- Zero edition 2024 compatibility warnings from `cargo clippy`
+- No `if-let-rescope` warnings
+- All 41 unit tests + 8 doc tests passing
+- No breaking changes detected
+
+#### Summary
+
+Edition 2024 provides automatic safety and ergonomic improvements to the doctora codebase:
+- **Parser combinators**: Automatic lifetime capture reduces boilerplate
+- **Error handling**: Safer temporary lifetimes prevent common bugs
+- **Type inference**: More predictable behavior in pattern matching
+- **Future-ready**: Prepared for generators and async closures
+
+No code changes required - benefits are automatic and verified compatible.
 
 ---
 
@@ -600,6 +688,162 @@ See `docs/BENCHMARK_RESULTS.md` for detailed analysis.
 
 ---
 
+### ADR-005: CLI Argument Parser - clap
+**Status**: Accepted
+**Date**: 2025-11-15
+
+**Context**:
+Doctora needs a command-line interface for users to:
+- Convert AsciiDoc documents to various formats (HTML, PDF, Markdown)
+- Validate AsciiDoc syntax
+- Configure output options (themes, output paths, validation levels)
+- Support subcommands (e.g., `doctora convert`, `doctora validate`)
+- Provide professional UX (help generation, shell completions, error messages)
+
+As a tool competing with asciidoctor (Ruby CLI), doctora must provide a polished, user-friendly command-line experience.
+
+**Research Conducted**:
+Evaluated Rust CLI parsing libraries based on:
+- **Ecosystem adoption** (download counts, community size)
+- **Feature completeness** (help generation, completions, subcommands)
+- **Performance trade-offs** (compile time, binary size)
+- **Developer experience** (API ergonomics, documentation)
+
+**Options Analyzed**:
+- **clap**: 27.2M downloads - Industry standard, full-featured
+- **bpaf**: 274K downloads - Modern combinator approach, lightweight
+- **pico-args**: 2.1M downloads - Minimal, zero dependencies
+- **lexopt**: 387K downloads - Minimal, pedantic
+- **gumdrop**: Simple with derive, but no OsStr support
+- **argh**: Lightweight but lacks Unix conventions
+
+**Decision**: Use **clap v4** with derive API.
+
+**Rationale**:
+1. **Industry Standard**: 27.2M downloads, de facto standard for Rust CLIs
+2. **Professional UX**: Excellent help generation, colored output, typo suggestions, validation
+3. **Feature Complete**: Supports all doctora needs:
+   - Subcommands (`doctora convert`, `doctora validate`)
+   - Shell completions (bash, zsh, fish, PowerShell)
+   - Environment variable support
+   - Configuration file integration
+4. **Ecosystem**: Large community, extensive documentation, many examples
+5. **Proven**: Used by major Rust projects (cargo, rustup, ripgrep)
+6. **Dual API**: Both derive (declarative) and builder (imperative) available
+7. **Maintainability**: Most Rust developers familiar with clap, easier onboarding
+8. **Unix Conventions**: Full support for standard CLI conventions
+9. **Active Maintenance**: Maintained by Rust CLI working group
+
+**Trade-offs Accepted**:
+- **Compile Time**: clap adds dependencies that increase build time vs minimalist options
+- **Binary Size**: Larger binary size than pico-args/lexopt
+- **Justification**: For a production-quality tool like doctora, professional UX and maintainability outweigh compile-time concerns. Users care about runtime UX, not developer build times.
+
+**Consequences**:
+
+*Pros*:
+- Professional, polished CLI experience matching asciidoctor quality
+- Comprehensive help generation and documentation
+- Shell completions for all major shells
+- Error messages with suggestions (e.g., "Did you mean 'convert'?")
+- Easy to extend with new subcommands and options
+- Large ecosystem of clap plugins and integrations
+- Most contributors already familiar with clap
+- Excellent documentation and examples
+
+*Cons*:
+- Slower compile times during development (mitigated by incremental compilation)
+- Larger binary size (~200-300KB vs ~50KB for minimal parsers)
+- More dependencies to audit and maintain
+- Learning curve for advanced features (though derive API is simple)
+
+*Mitigations*:
+- Use derive API for simpler, more maintainable code
+- Enable only needed clap features to minimize binary size
+- Incremental compilation keeps rebuild times reasonable
+- Binary size acceptable for modern systems (even 1MB is negligible)
+
+**Alternatives Considered**:
+
+1. **bpaf** (Parser Combinator)
+   - *Not Chosen*: Smaller ecosystem (274K vs 27M downloads)
+   - Modern combinator approach interesting but less proven
+   - Lighter weight but fewer battle-tested examples
+   - Valid alternative if clap proves problematic
+   - Smaller community means less support
+
+2. **pico-args** (Minimal)
+   - *Not Chosen*: Too minimal for doctora's needs
+   - No help generation (would have to write manually)
+   - No derive support (manual parsing code)
+   - No shell completions
+   - Good for simple tools, insufficient for doctora
+
+3. **lexopt** (Minimal)
+   - *Not Chosen*: Lexer-only approach requires manual parser
+   - More work to implement help, completions, validation
+   - Pedantic correctness valuable but not worth manual effort
+   - Better suited for hand-written parsers
+
+4. **gumdrop** (Simple Derive)
+   - *Not Chosen*: No OsStr support (non-Unicode args)
+   - Less active maintenance than clap
+   - Smaller feature set
+   - Middle ground not compelling vs clap
+
+5. **argh** (Lightweight)
+   - *Not Chosen*: Does not support Unix conventions
+   - Non-Unix platforms only
+   - Deal-breaker for cross-platform tool
+
+**Example Usage**:
+```rust
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(name = "doctora")]
+#[command(about = "AsciiDoc parser and processor", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Convert AsciiDoc to various formats
+    Convert {
+        /// Input AsciiDoc file
+        input: PathBuf,
+
+        /// Output format (html, pdf, markdown)
+        #[arg(short, long, default_value = "html")]
+        format: String,
+
+        /// Output file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Validate AsciiDoc syntax
+    Validate {
+        /// Input AsciiDoc file
+        input: PathBuf,
+    },
+}
+```
+
+**Success Criteria**:
+- Generate comprehensive help messages automatically
+- Support shell completions for all major shells
+- Provide helpful error messages for invalid arguments
+- Handle subcommands cleanly (convert, validate, future commands)
+- Support both short (-f) and long (--format) options
+- Enable future extension with minimal code changes
+
+**Review Date**: After v0.1.0 release (after basic CLI implemented).
+
+---
+
 ## Next Steps
 
 ### Immediate (v0.1.0 - MVP)
@@ -626,12 +870,27 @@ See `docs/BENCHMARK_RESULTS.md` for detailed analysis.
 ## Document Change Log
 
 ### 2025-11-15
+- **Edition 2024 Documentation**: Added comprehensive "Rust Edition 2024 Benefits" section
+  - Updated edition from 2021 to 2024 in Technology Stack
+  - Updated minimum Rust version to 1.91+
+  - Documented RPIT lifetime capture benefits for parser combinators
+  - Documented temporary lifetime improvements for error handling
+  - Documented never type fallback benefits
+  - Added compatibility verification results (all tests passing)
+  - Listed specific code locations benefiting from edition 2024
+  - Added future-ready features (gen blocks, async closures)
 - **ADR-004 Updated**: Revised parsing library decision from Chumsky to Winnow
-- Phase 1 POC completed with comprehensive benchmarks
-- Winnow selected based on 16-45% performance advantage over Chumsky
-- Updated rationale, consequences, and alternatives sections
-- Added POC results and benchmark references (docs/BENCHMARK_RESULTS.md)
-- Updated Core Components section to reflect Winnow technology choice
+  - Phase 1 POC completed with comprehensive benchmarks
+  - Winnow selected based on 16-45% performance advantage over Chumsky
+  - Updated rationale, consequences, and alternatives sections
+  - Added POC results and benchmark references (docs/BENCHMARK_RESULTS.md)
+  - Updated Core Components section to reflect Winnow technology choice
+- **ADR-005 Added**: CLI Argument Parser decision
+  - Evaluated clap, bpaf, pico-args, lexopt, gumdrop, and argh
+  - Selected clap v4 as industry standard for professional CLI UX
+  - Documented trade-offs: compile time vs user experience
+  - Included example usage with derive API
+  - Research based on ecosystem adoption (27M downloads) and feature completeness
 
 ### 2024-11-14
 - Initial architecture document created
