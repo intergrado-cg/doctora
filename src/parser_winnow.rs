@@ -150,7 +150,7 @@ pub fn parse_document_winnow(input: &[Token]) -> Result<Document, String> {
 
     parser
         .parse(input)
-        .map(|blocks| Document::with_blocks(blocks))
+        .map(Document::with_blocks)
         .map_err(|err| format!("Parse error: {:?}", err))
 }
 

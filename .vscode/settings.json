@@ -3,6 +3,7 @@
         "asciidocr",
         "asciidork",
         "doctora",
+        "indexterm",
         "proptest"
     ]
 }
