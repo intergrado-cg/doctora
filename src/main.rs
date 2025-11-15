@@ -65,7 +65,7 @@ Another paragraph here."#;
 
     // ===== Step 2: Parsing =====
     println!("\n{}", "=".repeat(80));
-    println!("STEP 2: PARSING (Chumsky)");
+    println!("STEP 2: PARSING (Winnow)");
     println!("{}", "=".repeat(80));
 
     match parse_document(input) {

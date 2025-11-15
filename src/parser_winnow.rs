@@ -1,17 +1,120 @@
-//! Parser for converting AsciiDoc tokens to AST using Winnow
+//! Winnow-based parser for converting AsciiDoc tokens to AST
 //!
-//! This module uses Winnow 0.7 to parse a token stream (from Logos)
-//! into an Abstract Syntax Tree. It mirrors the Chumsky parser structure
-//! for fair comparison.
+//! This module uses **Winnow 0.7**, a high-performance parser combinator library,
+//! to parse a token stream (from Logos) into an Abstract Syntax Tree.
+//!
+//! **Why Winnow?** Benchmarks showed 16-45% performance advantage over Chumsky,
+//! with zero-copy design for scalability. See `docs/BENCHMARK_RESULTS.md`.
 //!
 //! # Architecture
 //!
-//! The parser is structured as a hierarchy:
-//! - `document()` - Top-level parser, returns `Document`
-//! - `block()` - Parses sections or paragraphs
-//! - `section()` - Parses a heading and its nested content
-//! - `paragraph()` - Parses paragraph text with inline formatting
-//! - `inline()` - Parses inline content (text, bold, italic)
+//! The parser is structured as a hierarchy of combinator functions:
+//! - `parse_document_winnow()` - Public API, entry point
+//! - `block()` - Parses sections or paragraphs (choice combinator)
+//! - `section()` - Parses heading + nested content (sequence combinator)
+//! - `paragraph()` - Parses inline formatted text
+//! - `inline()` - Parses text, bold, italic (recursive combinator)
+//!
+//! # Winnow Patterns Used
+//!
+//! ## 1. Parser Signature
+//! ```ignore
+//! fn parser(input: &mut Input<'_>) -> winnow::Result<Output>
+//! ```
+//! - **Input**: Mutable reference to token slice (`&mut &[Token]`)
+//! - **Output**: `winnow::Result<T>` = `Result<T, ErrMode<ContextError>>`
+//! - **Mutable**: Parser consumes tokens by advancing the slice
+//!
+//! ## 2. Core Combinators
+//!
+//! ### `alt((p1, p2, ...))` - Choice
+//! Try parsers in order, return first success:
+//! ```ignore
+//! alt((section, paragraph))  // Try section, fall back to paragraph
+//! ```
+//!
+//! ### `repeat(N.., parser)` - Repetition
+//! Parse zero or more occurrences:
+//! ```ignore
+//! repeat(0.., block)         // Zero or more blocks
+//! repeat(1.., word)          // One or more words
+//! ```
+//!
+//! ### `delimited(open, content, close)` - Wrapped content
+//! Parse content between delimiters:
+//! ```ignore
+//! delimited(bold_open, inline, bold_close)  // **content**
+//! ```
+//!
+//! ### `terminated(parser, terminator)` - Sequence with ignored suffix
+//! Parse and ignore terminator:
+//! ```ignore
+//! terminated(blocks, eof)    // Blocks followed by end-of-file
+//! ```
+//!
+//! ## 3. Token Matching
+//!
+//! ### `any.verify_map(|tok| ...)` - Match and transform
+//! Match any token, transform if condition met:
+//! ```ignore
+//! any.verify_map(|token| match token {
+//!     Token::Heading1 => Some(1),  // Map to level
+//!     _ => None,                   // Reject other tokens
+//! })
+//! ```
+//!
+//! ### `token(expected)` - Exact match
+//! Match specific token:
+//! ```ignore
+//! token(Token::BoldDelimiter)  // Match **
+//! ```
+//!
+//! ## 4. Error Handling
+//!
+//! Winnow errors are `ErrMode<ContextError>`:
+//! - **Backtrack**: Try next alternative in `alt()`
+//! - **Cut**: Commit to current parser branch
+//! - **Incomplete**: Need more input (streaming)
+//!
+//! Current implementation maps all errors to `String` for simplicity.
+//! Future: Implement custom error recovery with precise locations.
+//!
+//! ## 5. Type Annotations
+//!
+//! Winnow requires explicit types in some cases:
+//! ```ignore
+//! let blocks: Vec<Block> = repeat(0.., block).parse_next(input)?;
+//! //          ^^^^^^^^^^^ Explicit type required for collect
+//! ```
+//!
+//! # Performance Characteristics
+//!
+//! - **Zero-copy**: Parser operates on borrowed token slice
+//! - **No backtracking overhead**: Winnow is optimized for committed choices
+//! - **Stack-based**: No heap allocations in parser combinators
+//! - **Measured**: 112.44 MiB/s on 1KB documents (45% faster than Chumsky)
+//!
+//! # Example Usage
+//!
+//! ```
+//! use doctora::parser_winnow::parse_document_winnow;
+//! use doctora::token::Token;
+//! use logos::Logos;
+//!
+//! let input = "= Hello\n\nParagraph **bold** text.";
+//! let tokens: Vec<Token> = Token::lexer(input)
+//!     .filter_map(Result::ok)
+//!     .collect();
+//!
+//! let doc = parse_document_winnow(&tokens).expect("parse failed");
+//! assert_eq!(doc.blocks.len(), 1);  // One section
+//! ```
+//!
+//! # References
+//!
+//! - **Winnow Docs**: <https://docs.rs/winnow/0.7>
+//! - **Combinator Guide**: <https://github.com/winnow-rs/winnow/blob/main/examples/>
+//! - **Benchmark Results**: `docs/BENCHMARK_RESULTS.md`
 
 use crate::ast::{Block, Document, Inline};
 use crate::token::Token;

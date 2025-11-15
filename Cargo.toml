@@ -9,14 +9,9 @@ repository = "https://github.com/yourusername/doctora"
 
 [dependencies]
 logos = "0.15"
-chumsky = "0.11"
 winnow = "0.7"
 miette = { version = "7", features = ["fancy"] }
 thiserror = "2"
 
 [dev-dependencies]
 criterion = "0.7"
-
-[[bench]]
-name = "parser_bench"
-harness = false
